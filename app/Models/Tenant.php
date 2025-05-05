@@ -10,7 +10,7 @@ use Stancl\Tenancy\Database\Concerns\HasDomains;
 class Tenant extends BaseTenant implements TenantWithDatabase
 {
     use HasDatabase, HasDomains;
-    
+    protected $table = 'tenants';
     protected $fillable = [
         'id',
         'name',
@@ -28,6 +28,12 @@ class Tenant extends BaseTenant implements TenantWithDatabase
     }
 
     protected $casts = [
+        'id' => 'string',
         'data' => 'array',
     ];
+
+    public function getDatabaseName(): string
+    {
+        return 'tenant' . $this->id; // Example naming pattern
+    }
 }

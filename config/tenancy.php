@@ -35,14 +35,28 @@ return [
         // Stancl\Tenancy\Bootstrappers\RedisTenancyBootstrapper::class, // Note: phpredis is needed
     ],
 
+    
+
     /**
      * Database tenancy config. Used by DatabaseTenancyBootstrapper.
      */
     'database' => [
-        'central_connection' => env('DB_CONNECTION', 'central'),
-        'based_on' => 'tenant', // The connection that will be used as a template
-        'template_connection' => env('TENANCY_DATABASE_TEMPLATE', 'pgsql'),
-        'tenant_database_connection_name' => 'tenant',
+        'central_connection' => env('DB_CONNECTION', 'pgsql'),
+        'template_connection' => env('DB_CONNECTION', 'pgsql'),
+        'tenant_connection' => 'tenant',
+        'tenant_database_names' => [
+            'generator' => Stancl\Tenancy\Database\DatabaseNameGenerator::class,
+        ],
+        'tenant_migrations_path' => database_path('migrations/tenant'),
+        'tenant_database_manager' => Stancl\Tenancy\TenantDatabaseManagers\PostgreSQLDatabaseManager::class,
+        'db_name_generator' => Stancl\Tenancy\Database\DatabaseNameGenerator::class,
+
+        // 'skip_migrations' => [
+        //     '2014_10_12_000000_create_users_table.php',
+        //     '2019_12_14_000001_create_personal_access_tokens_table.php',
+        //     // Add all other default migrations
+        // ],
+
       
         /**
          * Connection used as a "template" for the dynamically created tenant database connection.
@@ -57,6 +71,8 @@ return [
         'prefix' => 'tenant',
         'suffix' => '',
 
+        'tenant_seeder_class' => null, // or Database\\Seeders\\TenantDatabaseSeeder
+
         /**
          * TenantDatabaseManagers are classes that handle the creation & deletion of tenant databases.
          */
@@ -69,6 +85,7 @@ return [
             // 'pgsql'  =>    Stancl\Tenancy\TenantDatabaseManagers\PostgreSQLSchemaManager::class
             // 'pgsql'  => Stancl\Tenancy\Database\TenantDatabaseManagers\PostgreSQLDatabaseManager::class,
 
+        
         /**
          * Use this database manager for MySQL to have a DB user created for each tenant database.
          * You can customize the grants given to these users by changing the $grants property.

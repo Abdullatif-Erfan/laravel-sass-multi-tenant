@@ -10,7 +10,6 @@ use Stancl\Tenancy\Database\Concerns\HasDomains;
 class Tenant extends BaseTenant implements TenantWithDatabase
 {
     use HasDatabase, HasDomains;
-    protected $table = 'tenants';
     protected $fillable = [
         'id',
         'name',
@@ -24,6 +23,7 @@ class Tenant extends BaseTenant implements TenantWithDatabase
             'id',
             'name',
             'email',
+            'data',
         ];
     }
 
@@ -34,6 +34,19 @@ class Tenant extends BaseTenant implements TenantWithDatabase
 
     public function getDatabaseName(): string
     {
-        return 'tenant' . $this->id; // Example naming pattern
+        return 'tenant' . $this->id;
     }
+
+
+    // public function database(): DatabaseConfig
+    // {
+    //     return new DatabaseConfig([
+    //         'driver' => 'pgsql',
+    //         'host' => env('DB_HOST', '127.0.0.1'),
+    //         'port' => env('DB_PORT', '5432'),
+    //         'database' => 'tenant' . $this->id,
+    //         'username' => env('DB_USERNAME', 'postgres'),
+    //         'password' => env('DB_PASSWORD', ''),
+    //     ]);
+    // }
 }

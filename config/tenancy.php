@@ -8,7 +8,6 @@ use Stancl\Tenancy\Database\Models\Tenant;
 return [
     'tenant_model' =>  \App\Models\Tenant::class,
     'id_generator' => Stancl\Tenancy\UUIDGenerator::class,
-
     'domain_model' => Domain::class,
 
     /**
@@ -44,6 +43,7 @@ return [
         'central_connection' => env('DB_CONNECTION', 'pgsql'),
         'template_connection' => env('DB_CONNECTION', 'pgsql'),
         'tenant_connection' => 'tenant',
+        'tenant_database_connection_name'  => 'tenant',
         'tenant_database_names' => [
             'generator' => Stancl\Tenancy\Database\DatabaseNameGenerator::class,
         ],

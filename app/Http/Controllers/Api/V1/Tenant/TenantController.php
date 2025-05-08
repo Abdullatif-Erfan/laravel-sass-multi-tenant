@@ -108,7 +108,6 @@ class TenantController extends Controller
             '--force' => true,
             '--pretend' => false, 
         ]);
-
     }
 
 

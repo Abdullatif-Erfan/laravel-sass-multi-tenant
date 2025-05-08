@@ -11,16 +11,17 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withMiddleware(function (Illuminate\Foundation\Configuration\Middleware $middleware) {
+    ->withMiddleware(function (Middleware $middleware) {
         $middleware->api(append: [
-            \App\Http\Middleware\IdentifyTenant::class,
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         ]);
-        
+
+        // Register IdentifyTenant as a route middleware alias
         $middleware->alias([
             'tenancy' => \App\Http\Middleware\IdentifyTenant::class,
         ]);
     })
+    
     ->withExceptions(function (Exceptions $exceptions) {
         //
     })->create();

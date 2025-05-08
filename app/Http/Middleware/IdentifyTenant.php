@@ -3,22 +3,27 @@
 namespace App\Http\Middleware;
 
 use Closure;
-use Stancl\Tenancy\Resolvers\DomainTenantResolver;
+use Illuminate\Http\Request;
 use Stancl\Tenancy\Tenancy;
+use Stancl\Tenancy\Exceptions\TenantCouldNotBeIdentifiedById;
 
 class IdentifyTenant
 {
-    public function handle($request, Closure $next)
+    public function handle(Request $request, Closure $next)
     {
-        // Check for tenant ID in header or in tokenable_id for Sanctum tokens
-        if ($request->hasHeader('X-Tenant-ID')) {
-            $tenantId = $request->header('X-Tenant-ID');
+        $tenantId = $request->header('X-Tenant-ID'); // or use $request->get('tenant_id')
+
+        if (!$tenantId) {
+            abort(400, 'Tenant ID is missing.');
+        }
+
+        try {
             tenancy()->initialize($tenantId);
-        } elseif ($request->user()) {
-            // If user is authenticated via Sanctum, initialize their tenant
-            tenancy()->initialize($request->user()->tenant_id);
+        } catch (TenantCouldNotBeIdentifiedById $e) {
+            abort(404, 'Tenant not found.');
         }
         
         return $next($request);
     }
 }
+

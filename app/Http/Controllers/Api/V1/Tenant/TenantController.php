@@ -95,9 +95,9 @@ class TenantController extends Controller
         try {
             // Check DB connection
             \DB::connection('tenant')->getPdo();
-            \Log::info("✅ Connected to tenant DB: $tenantDatabase");
+            \Log::info("Connected to tenant DB: $tenantDatabase");
         } catch (\Exception $e) {
-            \Log::error("❌ Failed to connect to tenant DB: " . $e->getMessage());
+            \Log::error("Failed to connect to tenant DB: " . $e->getMessage());
             throw $e;
         }
 
@@ -132,12 +132,18 @@ class TenantController extends Controller
         \DB::beginTransaction();
 
         try {
+           // Generate a single UUID to use for both tenant ID and database name
+           $tenantId = (string) Str::uuid();
+           $databaseName = 'tenant' . $tenantId; // Use UUID for database name
+           
             // Create tenant
             $tenant = Tenant::create([
-                'id' => (string) Str::uuid(),
+                'id' => $tenantId,
                 'name' => $validated['name'],
                 'email' => $validated['email'],
-                'data' => ['password' => $validated['password']], // Store password temporarily in 'data' field
+                'data' => [
+                    'database' => $databaseName
+                ],
             ]);
 
             if(!$tenant)
@@ -147,7 +153,7 @@ class TenantController extends Controller
                 ], 202);
             }
 
-            // Create domain for the tenant
+            // // Create domain for the tenant
             $tenant->domains()->create([
                 'domain' => $validated['domain'],
             ]);

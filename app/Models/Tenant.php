@@ -5,11 +5,16 @@ namespace App\Models;
 use Stancl\Tenancy\Database\Models\Tenant as BaseTenant;
 use Stancl\Tenancy\Contracts\TenantWithDatabase;
 use Stancl\Tenancy\Database\Concerns\HasDatabase;
-use Stancl\Tenancy\Database\Concerns\HasDomains;
 
 class Tenant extends BaseTenant implements TenantWithDatabase
 {
-    use HasDatabase, HasDomains;
+    use HasDatabase;
+
+    protected $casts = [
+        'id' => 'string',
+        'data' => 'array',
+    ];
+
     protected $fillable = [
         'id',
         'name',
@@ -27,26 +32,8 @@ class Tenant extends BaseTenant implements TenantWithDatabase
         ];
     }
 
-    protected $casts = [
-        'id' => 'string',
-        'data' => 'array',
-    ];
-
     public function getDatabaseName(): string
     {
         return 'tenant' . $this->id;
-    }
-
-
-    // public function database(): DatabaseConfig
-    // {
-    //     return new DatabaseConfig([
-    //         'driver' => 'pgsql',
-    //         'host' => env('DB_HOST', '127.0.0.1'),
-    //         'port' => env('DB_PORT', '5432'),
-    //         'database' => 'tenant' . $this->id,
-    //         'username' => env('DB_USERNAME', 'postgres'),
-    //         'password' => env('DB_PASSWORD', ''),
-    //     ]);
-    // }
+    }   
 }

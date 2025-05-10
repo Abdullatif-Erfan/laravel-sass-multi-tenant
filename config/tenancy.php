@@ -6,6 +6,12 @@ use Stancl\Tenancy\Database\Models\Domain;
 use Stancl\Tenancy\Database\Models\Tenant;
 
 return [
+
+    'models' => [
+        'tenant' => \App\Models\Tenant::class,
+        'domain' => \Stancl\Tenancy\Database\Models\Domain::class,
+    ],
+
     'tenant_model' =>  \App\Models\Tenant::class,
     'id_generator' => Stancl\Tenancy\UUIDGenerator::class,
     'domain_model' => Domain::class,
@@ -28,28 +34,32 @@ return [
      */
     'bootstrappers' => [
         Stancl\Tenancy\Bootstrappers\DatabaseTenancyBootstrapper::class,
-        Stancl\Tenancy\Bootstrappers\CacheTenancyBootstrapper::class,
+        // Stancl\Tenancy\Bootstrappers\CacheTenancyBootstrapper::class,
         Stancl\Tenancy\Bootstrappers\FilesystemTenancyBootstrapper::class,
         Stancl\Tenancy\Bootstrappers\QueueTenancyBootstrapper::class,
         // Stancl\Tenancy\Bootstrappers\RedisTenancyBootstrapper::class, // Note: phpredis is needed
     ],
-
+  
+    'features' => [
+        Stancl\Tenancy\Features\TenantDatabase::class,
+    ],
     
-
     /**
      * Database tenancy config. Used by DatabaseTenancyBootstrapper.
      */
     'database' => [
-        'central_connection' => env('DB_CONNECTION', 'pgsql'),
-        'template_connection' => env('DB_CONNECTION', 'pgsql'),
+
+        'central_connection' => env('DB_CONNECTION', 'central'),
         'tenant_connection' => 'tenant',
-        'tenant_database_connection_name'  => 'tenant',
+
+        // 'template_connection' => env('DB_CONNECTION', 'pgsql'),
         'tenant_database_names' => [
             'generator' => Stancl\Tenancy\Database\DatabaseNameGenerator::class,
         ],
         'tenant_migrations_path' => database_path('migrations/tenant'),
         'tenant_database_manager' => Stancl\Tenancy\TenantDatabaseManagers\PostgreSQLDatabaseManager::class,
         'db_name_generator' => Stancl\Tenancy\Database\DatabaseNameGenerator::class,
+
 
         // 'skip_migrations' => [
         //     '2014_10_12_000000_create_users_table.php',

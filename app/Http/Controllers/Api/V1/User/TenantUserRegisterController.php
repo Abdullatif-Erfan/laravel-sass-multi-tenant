@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rules;
 use Illuminate\Support\Facades\Log;
 
@@ -14,47 +15,58 @@ class TenantUserRegisterController extends Controller
 {
     public function register(Request $request)
     {
-        $tenant = tenant(); // this is now initialized and DB switched
-        return ['tenants' => $tenant];
+        \Log::info('Starting user registration process');
+        
+        $tenant = tenant();
+        // return ['tenant data' => $tenant];
+        // die();
 
-        // if (! $tenant) {
-        //     return response()->json(['message' => 'Tenant not found'], 400);
-        // }
+        if (!$tenant) {
+            \Log::error('Tenant not found during registration');
+            return response()->json(['message' => 'Tenant not initialized'], 400);
+        }
 
-        // // Log tenant ID and current DB connection details
-        // Log::info('Registering user for tenant', [
-        //     'tenant_id' => $tenant->id,
-        //     'connection_name' => config('database.default'),
-        //     'tenant_connection' => config('database.connections.tenant.database'),
-        //     'actual_connection_used' => \DB::connection()->getName(),
-        //     'actual_database_name' => \DB::connection()->getDatabaseName(),
-        // ]);
+        \Log::info('Registering user for tenant', [
+            'tenant_id' => $tenant->id,
+            'database' => DB::connection()->getDatabaseName(),
+        ]);
 
-        // $validated = $request->validate([
-        //     'name' => 'required|string|max:255',
-        //     'email' => 'required|email',
-        //     'password' => ['required', 'confirmed', Rules\Password::defaults()],
-        // ]);
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'password' => ['required', 'confirmed', Rules\Password::defaults()],
+        ]);
 
-        // $user = User::create([
-        //     'name' => $validated['name'],
-        //     'email' => $validated['email'],
-        //     'password' => Hash::make($validated['password']),
-        // ]);
-        // App\Models\Tenant::all()->runForEach(function () {
-        //     dd('Creating user for tenant');
-        //     // App\Models\User::create([
-        //     //     'name' => $validated['name'],
-        //     //     'email' => $validated['email'],
-        //     //     'password' => Hash::make($validated['password']),
-        //     // ]);
-        // });
-
-        // return response()->json([
-        //     'message' => 'User registered successfully',
-        //     'tenant_id' => $tenant->id,
-        //     'user' => $user->makeHidden(['password']),
-        // ]);
+        try {
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password' => Hash::make($validated['password']),
+            ]);
+            
+            
+            \Log::info('User created successfully', ['user_id' => $user->id]);
+            
+            return response()->json([
+                'message' => 'User registered successfully',
+                'user' => $user->makeHidden(['password']),
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('User registration failed', [
+                'error' => $e->getMessage(),
+                'tenant' => $tenant->id
+            ]);
+            return response()->json(['message' => 'Registration failed'], 500);
+        }
     }
 
+    public function testDB(Request $request)
+    {
+        return response()->json([
+                    'connection' => DB::connection()->getName(),
+                    'database' => DB::connection()->getDatabaseName(),
+                    'config' => config('database.connections.'.DB::connection()->getName())
+                ]);
+    }
 }

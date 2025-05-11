@@ -9,99 +9,73 @@ use Illuminate\Support\Facades\DB;
 use Stancl\Tenancy\Exceptions\TenantCouldNotBeIdentifiedException;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Middleware to identify and switch to the tenant's database
+ * based on the `X-Tenant-ID` HTTP header.
+ *
+ * This middleware dynamically configures the tenant's database
+ * connection and makes it the default for the request lifecycle.
+ */
 class IdentifyTenant
 {
-
+    /**
+     * Handle an incoming request.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \Closure  $next
+     * @return \Symfony\Component\HttpFoundation\Response
+     */
     public function handle(Request $request, Closure $next): Response
     {
+        // Force all responses to be JSON
         $request->headers->set('Accept', 'application/json');
 
+        // Check for the required tenant identifier in the request headers
         if (!$request->hasHeader('X-Tenant-ID')) {
             return response()->json(['message' => 'X-Tenant-ID header required'], 400);
         }
 
+        // Retrieve tenant ID from the header
         $tenantId = $request->header('X-Tenant-ID');
+
+        // Dynamically generate the tenant database name (e.g., tenant3)
         $dbName = 'tenant' . $tenantId;
 
         try {
-            
-            // 1. Set the tenant database name
+            // Set the tenant database name in the configuration
             config(['database.connections.tenant.database' => $dbName]);
+
+            // Initialize tenancy to prepare tenant-specific environment (e.g., loading tenant model)
             tenancy()->initialize($tenantId);
-            
-            
-            // 2. Purge and reconnect the tenant connection
+
+            // Purge existing connection and reconnect to ensure correct config is loaded
             DB::purge('tenant');
             DB::reconnect('tenant');
-            
-            // 3. Set tenant connection as default
+
+            // Set tenant connection as the default for the current request
             DB::setDefaultConnection('tenant');
-            
-            // 4. Verify connection
-            DB::connection()->getPdo(); // Now uses default tenant connection
-            
-            \Log::info('Database switched', [
+
+            // Trigger the actual connection to ensure database exists and credentials are valid
+            DB::connection()->getPdo(); // Uses the current default ('tenant')
+
+            // Log the successful switch
+            Log::info('Database switched', [
                 'tenant' => $tenantId,
                 'database' => DB::connection()->getDatabaseName(),
                 'connection' => DB::connection()->getName()
             ]);
-            
+
+            // Continue processing the request
             return $next($request);
         } catch (\Exception $e) {
-            \Log::error('Database switch failed', [
+            // Log the failure for debugging
+            Log::error('Database switch failed', [
                 'error' => $e->getMessage(),
                 'tenant' => $tenantId
             ]);
+
+            // Return a generic error response
             return response()->json(['message' => 'Database switch failed'], 500);
         }
     }
-
-    // public function handle(Request $request, Closure $next): Response
-    // {
-    //     if ($request->hasHeader('X-Tenant-ID')) {
-    //         $tenantId = $request->header('X-Tenant-ID');
-
-    //         try {
-    //             tenancy()->initialize($tenantId);
-
-    //             $tenant = tenancy()->tenant;
-    //             $tenantDatabase = $tenant->getDatabaseName(); 
-
-    //             config(['database.connections.tenant.database' => $tenantDatabase]);
-    //             \DB::purge('tenant');
-    //             \DB::reconnect('tenant');
-
-    //             \Log::info('Tenant initialized', [
-    //                 'tenant_id' => $tenantId,
-    //                 'connection' => \DB::connection()->getName(),
-    //                 'database' => \DB::connection()->getDatabaseName(),
-    //             ]);
-    //         } catch (\Stancl\Tenancy\Exceptions\TenantCouldNotBeIdentifiedException $e) {
-    //             return response()->json([
-    //                 'message' => 'Invalid or missing tenant',
-    //                 'error' => $e->getMessage(),
-    //             ], Response::HTTP_BAD_REQUEST);
-    //         } catch (\Exception $e) {
-    //             \Log::error('Tenant initialization failed', [
-    //                 'tenant_id' => $tenantId,
-    //                 'error' => $e->getMessage(),
-    //             ]);
-    //             return response()->json([
-    //                 'message' => 'Failed to switch to tenant database',
-    //                 'error' => $e->getMessage(),
-    //             ], Response::HTTP_INTERNAL_SERVER_ERROR);
-    //         }
-    //     } else {
-    //         return response()->json([
-    //             'message' => 'X-Tenant-ID header is required',
-    //         ], Response::HTTP_BAD_REQUEST);
-    //     }
-
-    //     return $next($request);
-    // }
-    // public function terminate($request, $response): void
-    // {
-    //     // Properly end tenancy after the request
-    //     tenancy()->end();
-    // }
 }

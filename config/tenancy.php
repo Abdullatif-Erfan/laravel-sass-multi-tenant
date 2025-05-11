@@ -6,12 +6,6 @@ use Stancl\Tenancy\Database\Models\Domain;
 use Stancl\Tenancy\Database\Models\Tenant;
 
 return [
-
-    'models' => [
-        'tenant' => \App\Models\Tenant::class,
-        'domain' => \Stancl\Tenancy\Database\Models\Domain::class,
-    ],
-
     'tenant_model' =>  \App\Models\Tenant::class,
     'id_generator' => Stancl\Tenancy\UUIDGenerator::class,
     'domain_model' => Domain::class,
@@ -43,12 +37,11 @@ return [
     'features' => [
         Stancl\Tenancy\Features\TenantDatabase::class,
     ],
-    
+
     /**
      * Database tenancy config. Used by DatabaseTenancyBootstrapper.
      */
     'database' => [
-
         'central_connection' => env('DB_CONNECTION', 'central'),
         'tenant_connection' => 'tenant',
 
@@ -90,11 +83,6 @@ return [
             'sqlite' => \Stancl\Tenancy\TenantDatabaseManagers\SQLiteDatabaseManager::class,
             'mysql'  => \Stancl\Tenancy\TenantDatabaseManagers\MySQLDatabaseManager::class,
             'pgsql' =>  \Stancl\Tenancy\TenantDatabaseManagers\PostgreSQLDatabaseManager::class,
-            // 'pgsql'  => App\DatabaseManagers\PostgreSQLDatabaseManager::class,
-            // 'pgsql' => Stancl\Tenancy\TenantDatabaseManagers\PostgreSQLDatabaseManager::class,
-            // 'pgsql'  =>    Stancl\Tenancy\TenantDatabaseManagers\PostgreSQLSchemaManager::class
-            // 'pgsql'  => Stancl\Tenancy\Database\TenantDatabaseManagers\PostgreSQLDatabaseManager::class,
-
         
         /**
          * Use this database manager for MySQL to have a DB user created for each tenant database.

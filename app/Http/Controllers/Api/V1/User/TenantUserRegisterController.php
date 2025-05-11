@@ -18,9 +18,7 @@ class TenantUserRegisterController extends Controller
         \Log::info('Starting user registration process');
         
         $tenant = tenant();
-        // return ['tenant data' => $tenant];
-        // die();
-
+     
         if (!$tenant) {
             \Log::error('Tenant not found during registration');
             return response()->json(['message' => 'Tenant not initialized'], 400);

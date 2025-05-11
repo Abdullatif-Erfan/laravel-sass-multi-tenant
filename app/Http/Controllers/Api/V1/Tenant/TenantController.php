@@ -11,115 +11,18 @@ use Illuminate\Support\Facades\Log;
 use Stancl\Tenancy\Database\Exceptions\TenantDatabaseAlreadyExistsException;
 use Stancl\Tenancy\TenantDatabaseManagers\PostgreSQLDatabaseManager;
 
+/**
+ * Controller responsible for tenant registration and database setup
+ * in a multi-tenant Laravel application using stancl/tenancy.
+ */
 class TenantController extends Controller
 {
-    protected function setupTenantDatabase(Tenant $tenant, string $password)
-    {
-        try {
-            // 1. Create the physical database
-            $databaseManager = app(PostgreSQLDatabaseManager::class);
-            $databaseManager->setConnection('pgsql');
-            $databaseManager->createDatabase($tenant);
-
-            // 2. MANUALLY set the tenant database name
-            config(['database.connections.tenant.database' => $tenant->getDatabaseName()]);
-            \DB::purge('tenant'); // Clear connection cache
-
-
-            // 3. Verify connection (debug)
-            tenancy()->initialize($tenant);
-            \DB::connection('tenant')->reconnect(); // Force fresh connection
-
-            // dd([
-            //     'current_tenant' => tenant('id'),
-            //     'current_db' => \DB::connection('tenant')->select('SELECT current_database()')[0]->current_database,
-            //     'expected_db' => $tenant->getDatabaseName(),
-            //     'connection_config' => config('database.connections.tenant')
-            // ]);
-
-            // 4. Run ONLY tenant-specific migrations
-            $this->runTenantMigrations($tenant);
-
-            // 5. Create tenant admin, incase you need to register default admin for each tenant
-            // $this->createTenantAdmin($tenant, $password);
-
-        } catch (\Exception $e) {
-            // PROPERLY END ALL CONNECTIONS BEFORE DELETION
-            tenancy()->end(); // Critical - closes tenant connection
-            \DB::disconnect('tenant'); // Disconnect explicitly
-            
-            if (isset($databaseManager)) {
-                try {
-                    // Kill all active connections to the tenant DB
-                    \DB::connection('pgsql')->statement(
-                        "SELECT pg_terminate_backend(pg_stat_activity.pid) 
-                        FROM pg_stat_activity 
-                        WHERE pg_stat_activity.datname = '{$tenant->getDatabaseName()}'
-                        AND pid <> pg_backend_pid()"
-                    );
-                    sleep(1); // Give PostgreSQL time to close connections
-                    $databaseManager->deleteDatabase($tenant);
-                } catch (\Exception $deleteException) {
-                    // Log deletion error if needed
-                }
-            }
-            throw $e;
-        } finally {
-            tenancy()->end(); // End tenancy to clean up
-            \DB::disconnect('tenant');
-        }
-    }
-
-    protected function runTenantMigrations(Tenant $tenant)
-    {
-        // Clear caches (optional) 
-        \Artisan::call('config:clear');
-        \Artisan::call('route:clear');
-
-        // Dynamically set the tenant database
-        $tenantDatabase = $tenant->getDatabaseName();
-
-        config(['database.connections.tenant.database' => $tenantDatabase]);
-
-        // Purge and set the tenant connection
-        \DB::purge('tenant');
-        \DB::setDefaultConnection('tenant');
-        \DB::reconnect('tenant');
-
-
-        \Log::info("Running tenant migration", [
-            'tenant_id' => $tenant->id,
-            'database' => $tenantDatabase,
-        ]);
-
-        try {
-            // Check DB connection
-            \DB::connection('tenant')->getPdo();
-            \Log::info("Connected to tenant DB: $tenantDatabase");
-        } catch (\Exception $e) {
-            \Log::error("Failed to connect to tenant DB: " . $e->getMessage());
-            throw $e;
-        }
-
-        // Run tenant-specific migrations using --database and --path
-        $exitCode = \Artisan::call('migrate', [
-            '--database' => 'tenant',
-            '--path' => 'database/migrations/tenant',  
-            '--force' => true,
-            '--pretend' => false, 
-        ]);
-    }
-
-
-    protected function createTenantAdmin(Tenant $tenant, string $password)
-    {
-        \App\Models\User::create([
-            'name' => 'Admin',
-            'email' => $tenant->email ?? 'admin@' . $tenant->getTenantKey() . '.com',
-            'password' => bcrypt($password),
-        ]);
-    }
-
+    /**
+     * Registers a new tenant and sets up the corresponding database.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function register(Request $request)
     {
         $validated = $request->validate([
@@ -129,14 +32,14 @@ class TenantController extends Controller
             'password' => 'required|string|min:8',
         ]);
 
-        \DB::beginTransaction();
+        DB::beginTransaction();
 
         try {
-           // Generate a single UUID to use for both tenant ID and database name
-           $tenantId = (string) Str::uuid();
-           $databaseName = 'tenant' . $tenantId; // Use UUID for database name
-           
-            // Create tenant
+            // Generate UUID for tenant ID and database
+            $tenantId = (string) Str::uuid();
+            $databaseName = 'tenant' . $tenantId;
+
+            // Create the tenant model
             $tenant = Tenant::create([
                 'id' => $tenantId,
                 'name' => $validated['name'],
@@ -146,24 +49,23 @@ class TenantController extends Controller
                 ],
             ]);
 
-            if(!$tenant)
-            {
+            if (!$tenant) {
                 return response()->json([
                     'message' => 'Tenant is not created',
                 ], 202);
             }
 
-            // // Create domain for the tenant
+            // Associate domain with tenant
             $tenant->domains()->create([
                 'domain' => $validated['domain'],
             ]);
 
-            \DB::commit();
+            DB::commit();
 
-            \Log::info("Migrating tenant: " . $tenant->id);
-            \Log::info("Creating database: " . $tenant->database()->getName());
+            Log::info("Migrating tenant: " . $tenant->id);
+            Log::info("Creating database: " . $tenant->database()->getName());
 
-            // Set up tenant DB (outside of transaction)
+            // Set up tenant database and run migrations
             $this->setupTenantDatabase($tenant, $validated['password']);
 
             return response()->json([
@@ -172,9 +74,9 @@ class TenantController extends Controller
             ], 201);
 
         } catch (\Exception $e) {
-            \DB::rollBack();
+            DB::rollBack();
 
-            // Delete tenant if creation partially succeeded
+            // Clean up partially created tenant
             if (isset($tenant)) {
                 $tenant->delete();
             }
@@ -185,5 +87,121 @@ class TenantController extends Controller
                 'trace' => config('app.debug') ? $e->getTraceAsString() : null,
             ], 500);
         }
+    }
+
+    /**
+     * Sets up the tenant database and runs migrations.
+     *
+     * @param Tenant $tenant
+     * @param string $password
+     * @throws \Exception
+     */
+    protected function setupTenantDatabase(Tenant $tenant, string $password)
+    {
+        try {
+            // Initialize the PostgreSQL database manager
+            $databaseManager = app(PostgreSQLDatabaseManager::class);
+            $databaseManager->setConnection('pgsql');
+
+            // Create the tenant's database
+            $databaseManager->createDatabase($tenant);
+
+            // Manually configure the tenant connection
+            config(['database.connections.tenant.database' => $tenant->getDatabaseName()]);
+            DB::purge('tenant');
+
+            // Initialize tenancy and reconnect
+            tenancy()->initialize($tenant);
+            DB::connection('tenant')->reconnect();
+
+            // Run tenant-specific migrations
+            $this->runTenantMigrations($tenant);
+
+            // Optionally create a default tenant admin
+            // $this->createTenantAdmin($tenant, $password);
+
+        } catch (\Exception $e) {
+            // Ensure connections are properly closed
+            tenancy()->end();
+            DB::disconnect('tenant');
+
+            // Attempt to delete the database
+            if (isset($databaseManager)) {
+                try {
+                    DB::connection('pgsql')->statement(
+                        "SELECT pg_terminate_backend(pg_stat_activity.pid)
+                         FROM pg_stat_activity
+                         WHERE pg_stat_activity.datname = '{$tenant->getDatabaseName()}'
+                         AND pid <> pg_backend_pid()"
+                    );
+                    sleep(1); // Ensure connections are terminated
+                    $databaseManager->deleteDatabase($tenant);
+                } catch (\Exception $deleteException) {
+                    // Log cleanup error if necessary
+                }
+            }
+
+            throw $e;
+        } finally {
+            tenancy()->end();
+            DB::disconnect('tenant');
+        }
+    }
+
+    /**
+     * Runs tenant-specific database migrations.
+     *
+     * @param Tenant $tenant
+     * @throws \Exception
+     */
+    protected function runTenantMigrations(Tenant $tenant)
+    {
+        // Optional: clear caches to avoid conflicts
+        \Artisan::call('config:clear');
+        \Artisan::call('route:clear');
+
+        // Set the tenant DB connection
+        $tenantDatabase = $tenant->getDatabaseName();
+        config(['database.connections.tenant.database' => $tenantDatabase]);
+        DB::purge('tenant');
+        DB::setDefaultConnection('tenant');
+        DB::reconnect('tenant');
+
+        Log::info("Running tenant migration", [
+            'tenant_id' => $tenant->id,
+            'database' => $tenantDatabase,
+        ]);
+
+        try {
+            // Test DB connection
+            DB::connection('tenant')->getPdo();
+            Log::info("Connected to tenant DB: $tenantDatabase");
+        } catch (\Exception $e) {
+            Log::error("Failed to connect to tenant DB: " . $e->getMessage());
+            throw $e;
+        }
+
+        // Execute tenant migrations
+        \Artisan::call('migrate', [
+            '--database' => 'tenant',
+            '--path' => 'database/migrations/tenant',
+            '--force' => true,
+            '--pretend' => false,
+        ]);
+    }
+
+    /**
+     * Optionally creates a default admin user for the tenant.
+     *
+     * @param Tenant $tenant
+     * @param string $password
+     */
+    protected function createTenantAdmin(Tenant $tenant, string $password)
+    {
+        \App\Models\User::create([
+            'name' => 'Admin',
+            'email' => $tenant->email ?? 'admin@' . $tenant->getTenantKey() . '.com',
+            'password' => bcrypt($password),
+        ]);
     }
 }

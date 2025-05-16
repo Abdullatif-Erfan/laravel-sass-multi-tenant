@@ -19,15 +19,7 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot()
     {
-        // \Event::listen(\Stancl\Tenancy\Events\TenancyInitialized::class, function ($event) {
-        //     $tenant = $event->tenancy->tenant;
-        //     $tenantDbName = $tenant->database;
         
-        //     config(['database.connections.tenant.database' => $tenantDbName]);
-        
-        //     DB::purge('tenant');
-        //     DB::reconnect('tenant');
-        // });
     }
 }
 
